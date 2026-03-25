@@ -1388,6 +1388,14 @@ public function courseAssignment(Request $request)
                 ->addColumn('assigned_user_names', function ($row) {
                     return @$row->user->full_name;
                 })
+                ->addColumn('completion_percentage', function ($row) {
+                    $progress = \DB::table('subscribe_courses')
+                        ->where('user_id', $row->user_id)
+                        ->where('course_id', $row->course_id)
+                        ->whereNull('deleted_at')
+                        ->value('course_progress_status');
+                    return $progress !== null ? (int) $progress : 0;
+                })
                 ->filter(function ($query) use ($request) {
                     $search = $request->input('search')['value'] ?? null;
 
