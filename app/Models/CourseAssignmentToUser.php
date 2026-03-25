@@ -83,6 +83,4 @@ class CourseAssignmentToUser extends Model
     {
        return $this->belongsTo(courseAssignment::class, 'course_assignment_id', 'id');
     }
-
-    
 }

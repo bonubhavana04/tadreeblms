@@ -1337,33 +1337,33 @@ public function courseAssignment(Request $request)
 
             $assessments = CourseAssignmentToUser::query()
                             ->with('course','assignment','user')
-                            ->where('by_pathway','0')
+                            ->leftJoin('subscribe_courses as sc', function($join) {
+                                $join->on('sc.user_id', '=', 'course_assignment_users.user_id')
+                                     ->on('sc.course_id', '=', 'course_assignment_users.course_id')
+                                     ->whereNull('sc.deleted_at');
+                            })
+                            ->where('course_assignment_users.by_pathway','0')
                             ->when(!empty($course_id), function ($q) use ($course_id) {
-                                $q->where('course_id', $course_id);
+                                $q->where('course_assignment_users.course_id', $course_id);
                             })
                             ->when(!empty($user_id), function ($q) use ($user_id) {
-                                $q->where('user_id', $user_id);
+                                $q->where('course_assignment_users.user_id', $user_id);
                             })
                             ->when(!empty($progress_filter), function ($q) use ($progress_filter) {
-                                $q->leftJoin('subscribe_courses as sc_filter', function($join) {
-                                    $join->on('sc_filter.user_id', '=', 'course_assignment_users.user_id')
-                                         ->on('sc_filter.course_id', '=', 'course_assignment_users.course_id')
-                                         ->whereNull('sc_filter.deleted_at');
-                                });
                                 if ($progress_filter === '0') {
                                     $q->where(function($q2) {
-                                        $q2->whereNull('sc_filter.course_progress_status')
-                                           ->orWhere('sc_filter.course_progress_status', 0);
+                                        $q2->whereNull('sc.course_progress_status')
+                                           ->orWhere('sc.course_progress_status', 0);
                                     });
                                 } elseif ($progress_filter === '1-50') {
-                                    $q->whereBetween('sc_filter.course_progress_status', [1, 50]);
+                                    $q->whereBetween('sc.course_progress_status', [1, 50]);
                                 } elseif ($progress_filter === '51-99') {
-                                    $q->whereBetween('sc_filter.course_progress_status', [51, 99]);
+                                    $q->whereBetween('sc.course_progress_status', [51, 99]);
                                 } elseif ($progress_filter === '100') {
-                                    $q->where('sc_filter.course_progress_status', 100);
+                                    $q->where('sc.course_progress_status', 100);
                                 }
                             })
-                            ->select('course_assignment_users.*')
+                            ->select('course_assignment_users.*', \DB::raw('COALESCE(sc.course_progress_status, 0) as sc_progress'))
                             ->orderBy('course_assignment_users.id', 'Desc');
             
 
@@ -1411,13 +1411,7 @@ public function courseAssignment(Request $request)
                     return @$row->user->full_name;
                 })
                 ->addColumn('completion_percentage', function ($row) {
-                    // Use already-loaded subscribe_courses data if available, else query once
-                    $progress = \DB::table('subscribe_courses')
-                        ->where('user_id', $row->user_id)
-                        ->where('course_id', $row->course_id)
-                        ->whereNull('deleted_at')
-                        ->value('course_progress_status');
-                    return $progress !== null ? (int) $progress : 0;
+                    return (int) ($row->sc_progress ?? 0);
                 })
                 ->filter(function ($query) use ($request) {
                     $search = $request->input('search')['value'] ?? null;
