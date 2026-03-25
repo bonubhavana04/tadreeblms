@@ -51,8 +51,10 @@
                                         <option value="">Select</option>
                                         @if($published_courses)
                                         @foreach($published_courses as $row)
-                                        <option @if($row->id == request()->course_id) selected @endif value="{{ $row->id }}">{{ $row->title }}</option>
-                                        @endforeach
+ <option value="{{ $row->id }}"
+            @if(isset($selectedCourse) && $row->id == $selectedCourse) selected @endif>
+            {{ $row->title }}
+        </option>                                        @endforeach
                                         @endif
                                     </select>
                                     <span class="custom-select-icon">
@@ -65,6 +67,22 @@
                            
 
                            
+
+                            <div class="col-lg-4 col-sm-6 col-xs-12 mt-3">
+                                Completion %
+                                <div class="custom-select-wrapper mt-2">
+                                    <select name="progress_filter" id="progress_filter" class="form-control custom-select-box">
+                                        <option value="">All</option>
+                                        <option value="0">0% (Not Started)</option>
+                                        <option value="1-50">1% - 50%</option>
+                                        <option value="51-99">51% - 99%</option>
+                                        <option value="100">100% (Completed)</option>
+                                    </select>
+                                    <span class="custom-select-icon">
+                                        <i class="fa fa-chevron-down"></i>
+                                    </span>
+                                </div>
+                            </div>
 
                             <div class="col-lg-4 col-md-12 col-sm-6 col-xs-12 d-flex align-items-center mt-4">
 
@@ -95,6 +113,7 @@
                                     <th>@lang('Assign. to Department')</th>
                                     <th>@lang('Assign. to Specific User')</th>
                                     <th>@lang('Due Date')</th>
+                                    <th>@lang('Completion %')</th>
                                     {{-- <th>@lang('Action')</th> --}}
                                 </tr>
                             </thead>
@@ -111,13 +130,10 @@
     <script>
 
         $('#reset').click(function (){
-                //initializeDates();
             $('#user').val(null).trigger('change');
-           
             $('#course_id').val(null).trigger('change');
-            
+            $('#progress_filter').val('');
             $('#advace_filter').submit();
-           
         })
 
         $('#advace_filter').submit(function (e) {
@@ -134,6 +150,7 @@
 
             let user_id = $('#user').val();
             let course_id = $('#course_id').val() || null;
+            let progress_filter = $('#progress_filter').val() || null;
 
             if ($.fn.DataTable.isDataTable('#myTable')) {
                 dataTableInstance.clear().destroy();
@@ -144,76 +161,35 @@
                 processing: true,
                 serverSide: true,
                 searching: false,
-                //ajax: "/user/course-assign-list", 
                 ajax: {
                     url: "{{ route('admin.assessment_accounts.course-assign-list') }}",
                     type: "GET",
                     data: function (d) {
                         d.user_id = user_id;
                         d.course_id = course_id;
-                        // d.dept_id = dept_id;
-                        // d.from = $('#assign_from_date').val();
-                        // d.to = $('#assign_to_date').val();
-                        // d.due_date = $('#due_date').val();
+                        d.progress_filter = $('#progress_filter').val() || null;
                     }
                 },
                 columns: [
+                    { data: 'title',               name: 'title',               orderable: false },
+                    { data: 'course_code',          name: 'course_code',         orderable: false },
+                    { data: 'course_title',         name: 'course_title',        orderable: false },
+                    { data: 'course_cat',           name: 'course_cat',          orderable: false },
+                    { data: 'assign_by',            name: 'assign_by',           orderable: false },
+                    { data: 'assign_date',          name: 'assign_date',         orderable: false },
+                    { data: 'deprt_title',          name: 'deprt_title',         orderable: false },
+                    { data: 'assigned_user_names',  name: 'assigned_user_names', orderable: false },
+                    { data: 'due_date',             name: 'due_date',            orderable: false },
                     {
-                        data: 'title',
-                        name: 'title',
+                        data: 'completion_percentage',
+                        name: 'completion_percentage',
                         orderable: false,
+                        render: function(data) {
+                            var pct = parseInt(data) || 0;
+                            var color = pct === 0 ? 'danger' : (pct === 100 ? 'success' : (pct >= 51 ? 'primary' : 'warning'));
+                            return '<span class="badge badge-' + color + '" style="font-size:13px;padding:5px 10px;">' + pct + '%</span>';
+                        }
                     },
-                    {
-                        data: 'course_code',
-                        name: 'course_code',
-                        orderable: false,
-                    },
-                    {
-                        data: 'course_title',
-                        name: 'course_title',
-                        orderable: false,
-                    },
-                    {
-                        data: 'course_cat',
-                        name: 'course_cat',
-                        orderable: false,
-                    },
-                    {
-                        data: 'assign_by',
-                        name: 'assign_by',
-                        orderable: false,
-                    },
-                    {
-                        data: 'assign_date',
-                        name: 'assign_date',
-                        orderable: false,
-
-                    },
-                    {
-                        data: 'deprt_title',
-                        name: 'deprt_title',
-                        orderable: false,
-                    },
-                    {
-                        data: 'assigned_user_names',
-                        name: 'assigned_user_names',
-                        orderable: false,
-                    },
-                    {
-                        data: 'due_date',
-                        name: 'due_date',
-                        orderable: false,
-                    },
-
-                    // {
-                    //     data: "actions",
-                    //     render: function (data, type, row, meta) {
-                    //         return `<div class="actions d-flex">
-                    //                     <a class="btn btn-xs btn-info mb-1" href="/user/course_assign_edit/${row.id}"><i class="icon-pencil"></i></a>
-                    //                     <a onclick="return confirm('Are you sure you want to delete?')" class="btn btn-xs btn-danger mb-1" href="/user/course_assign_delete/${row.id}"><i class="fa fa-trash"></i></a>
-                    //                 </div>`;
-                    //     },
-                    // },
                 ],
                 "paginate": true,
                 "sort": true,

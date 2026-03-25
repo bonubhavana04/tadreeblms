@@ -55,6 +55,12 @@ class AssessmentAccountsController extends Controller
         $assessment_accounts = AssessmentAccount::where('deleted_at', NULL)->orderBy('created_at', 'desc')->get();
         return view('backend.assessment_accounts.index', compact('assessment_accounts'));
     }
+public function createWithCourse(Request $request)
+{
+    $published_courses = Course::where('status', 'published')->get();
+    $internal_users = User::where('role', 'employee')->get();
+    return view('backend.assignments.create_with_course', compact('published_courses', 'internal_users'));
+}
 
 public function courseAssignment(Request $request)
 {
@@ -592,9 +598,9 @@ public function courseAssignment(Request $request)
             'published' => 1,
         ]);
 
-        return redirect()
-            ->route('admin.courses.index')
-            ->withFlashSuccess('You completed all the flow for Courses...');
+     return redirect()->route('admin.courses.index')
+    ->with('course_created', true)
+    ->with('course_id', $course_id);
     }
 
 
@@ -810,6 +816,10 @@ public function courseAssignment(Request $request)
 
         if (!$course) {
             return response()->json(['error' => 'Course not found'], 404);
+        }
+
+        if ($course->expire_at && \Carbon\Carbon::parse($course->expire_at)->isPast()) {
+            return response()->json(['error' => 'This course has expired and enrollment is no longer allowed.'], 422);
         }
 
         $course_link = url("/course/$course->slug");
@@ -1323,6 +1333,8 @@ public function courseAssignment(Request $request)
             $user_id = $request->user_id ?? null;
             $course_id = $request->course_id ?? null;
 
+            $progress_filter = $request->progress_filter ?? null;
+
             $assessments = CourseAssignmentToUser::query()
                             ->with('course','assignment','user')
                             ->where('by_pathway','0')
@@ -1332,7 +1344,27 @@ public function courseAssignment(Request $request)
                             ->when(!empty($user_id), function ($q) use ($user_id) {
                                 $q->where('user_id', $user_id);
                             })
-                            ->orderBy('id', 'Desc');
+                            ->when(!empty($progress_filter), function ($q) use ($progress_filter) {
+                                $q->leftJoin('subscribe_courses as sc_filter', function($join) {
+                                    $join->on('sc_filter.user_id', '=', 'course_assignment_users.user_id')
+                                         ->on('sc_filter.course_id', '=', 'course_assignment_users.course_id')
+                                         ->whereNull('sc_filter.deleted_at');
+                                });
+                                if ($progress_filter === '0') {
+                                    $q->where(function($q2) {
+                                        $q2->whereNull('sc_filter.course_progress_status')
+                                           ->orWhere('sc_filter.course_progress_status', 0);
+                                    });
+                                } elseif ($progress_filter === '1-50') {
+                                    $q->whereBetween('sc_filter.course_progress_status', [1, 50]);
+                                } elseif ($progress_filter === '51-99') {
+                                    $q->whereBetween('sc_filter.course_progress_status', [51, 99]);
+                                } elseif ($progress_filter === '100') {
+                                    $q->where('sc_filter.course_progress_status', 100);
+                                }
+                            })
+                            ->select('course_assignment_users.*')
+                            ->orderBy('course_assignment_users.id', 'Desc');
             
 
             return DataTables::of($assessments)
@@ -1377,6 +1409,15 @@ public function courseAssignment(Request $request)
                 })
                 ->addColumn('assigned_user_names', function ($row) {
                     return @$row->user->full_name;
+                })
+                ->addColumn('completion_percentage', function ($row) {
+                    // Use already-loaded subscribe_courses data if available, else query once
+                    $progress = \DB::table('subscribe_courses')
+                        ->where('user_id', $row->user_id)
+                        ->where('course_id', $row->course_id)
+                        ->whereNull('deleted_at')
+                        ->value('course_progress_status');
+                    return $progress !== null ? (int) $progress : 0;
                 })
                 ->filter(function ($query) use ($request) {
                     $search = $request->input('search')['value'] ?? null;

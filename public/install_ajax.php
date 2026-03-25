@@ -333,7 +333,7 @@ try {
             $env = file_get_contents($envFile);
             if (strpos($env, 'APP_INSTALLED=') === false) {
                 $env .= "\nAPP_INSTALLED=true\n";
-            }else {
+            } else {
                 $env = preg_replace('/APP_INSTALLED=.*/', 'APP_INSTALLED=true', $env);
             }
 

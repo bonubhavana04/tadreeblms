@@ -112,13 +112,19 @@ class LoginController extends Controller
 
         // ✅ CAPTCHA CHECK
         if ((int) $request->captcha !== (int) Session::get('captcha_answer')) {
-            return response([
-                'success' => false,
-                'message' => 'Invalid captcha answer',
-            ], Response::HTTP_FORBIDDEN);
+        return response([
+            'success' => false,
+            'errors' => [
+                'captcha' => ['Invalid captcha answer']
+            ]
+        ], 422);
         }
 
-        $credentials = $request->only($this->username(), 'password');
+$credentials = [
+    'email' => $request->email,
+    'password' => $request->password,
+    'is_deleted' => 0
+];
 
         if (LaravelAuth::attempt($credentials, $request->has('remember'))) {
             $user = auth()->user();
@@ -178,13 +184,17 @@ class LoginController extends Controller
                 }
 
                 //Create or sync user in LMS database
-                $user = User::updateOrCreate(
-                    ['email' => $request->email],
-                    [
-                        'first_name' => $ldapUser->getFirstAttribute('cn'),
-                        'password' => bcrypt(Str::random(16)), // dummy local password
-                    ]
-                );
+                $user = User::where('email', $request->email)
+            ->where('is_deleted', 0)
+            ->first();
+
+if (!$user) {
+    $user = User::create([
+        'email' => $request->email,
+        'first_name' => $ldapUser->getFirstAttribute('cn'),
+        'password' => bcrypt(Str::random(16)),
+    ]);
+}
 
                 $user->assignRole('student');
 
