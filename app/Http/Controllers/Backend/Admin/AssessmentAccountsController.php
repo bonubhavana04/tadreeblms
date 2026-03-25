@@ -1352,18 +1352,18 @@ public function courseAssignment(Request $request)
                             ->when(!empty($progress_filter), function ($q) use ($progress_filter) {
                                 if ($progress_filter === '0') {
                                     $q->where(function($q2) {
-                                        $q2->whereNull('sc.course_progress_status')
-                                           ->orWhere('sc.course_progress_status', 0);
+                                        $q2->whereNull('sc.assignment_progress')
+                                           ->orWhere('sc.assignment_progress', 0);
                                     });
                                 } elseif ($progress_filter === '1-50') {
-                                    $q->whereBetween('sc.course_progress_status', [1, 50]);
+                                    $q->whereBetween('sc.assignment_progress', [1, 50]);
                                 } elseif ($progress_filter === '51-99') {
-                                    $q->whereBetween('sc.course_progress_status', [51, 99]);
+                                    $q->whereBetween('sc.assignment_progress', [51, 99]);
                                 } elseif ($progress_filter === '100') {
-                                    $q->where('sc.course_progress_status', 100);
+                                    $q->where('sc.assignment_progress', 100);
                                 }
                             })
-                            ->select('course_assignment_users.*', \DB::raw('COALESCE(sc.course_progress_status, 0) as sc_progress'))
+                            ->select('course_assignment_users.*', \DB::raw('COALESCE(sc.assignment_progress, 0) as sc_progress'))
                             ->orderBy('course_assignment_users.id', 'Desc');
             
 
